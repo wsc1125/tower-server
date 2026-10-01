@@ -54,12 +54,13 @@ const (
 type Service struct {
 	repo     *Repository
 	registry *Registry
+	sessions *SessionStore
 	logger   zerolog.Logger
 }
 
 // NewService 创建房间服务。
 func NewService(repo *Repository, registry *Registry, logger zerolog.Logger) *Service {
-	return &Service{repo: repo, registry: registry, logger: logger}
+	return &Service{repo: repo, registry: registry, sessions: NewSessionStore(), logger: logger}
 }
 
 // Create 创建房间：落库 + 内存建 Room + 房主加入。
