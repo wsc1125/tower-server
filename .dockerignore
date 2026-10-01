@@ -1,0 +1,26 @@
+# 构建上下文排除项。见 Dockerfile。
+#
+# 关键：排除 .env —— 它含密钥，绝不能进镜像层（镜像层可被任何人拉取查看）。
+
+# 密钥与本地配置
+.env
+.env.local
+*.pem
+*.key
+
+# 构建产物
+bin/
+*.exe
+
+# 版本控制与 IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# 文档
+*.md
+
+# 测试与临时文件
+*_test.go
+*.log

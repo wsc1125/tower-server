@@ -1,0 +1,25 @@
+# Go 编译产物
+/server/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试与覆盖率
+*.test
+*.out
+coverage.html
+
+# 本地环境变量（含密钥，绝不入库）
+.env
+
+# 依赖缓存（go.sum 入库，vendor 不入库）
+/server/vendor/
+
+# 用户上传的头像（运行时数据，不入库）
+/server/data/
+
+# IDE
+.idea/
+.vscode/

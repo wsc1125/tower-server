@@ -1,0 +1,83 @@
+# 本地开发编排。见《Go后端设计.md》7.1。
+#
+# 两种跑法：
+#   1. 只起依赖（推荐日常开发）：docker compose up -d postgres coturn
+#      然后 `go run ./cmd/api` 跑在宿主机，改代码即时生效。
+#   2. 全量容器化（验证部署）：docker compose up -d --build
+#      此时 api 也进容器，用于验证镜像本身没问题。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tower-postgres
+    environment:
+      POSTGRES_DB: tower
+      POSTGRES_USER: tower
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tower -d tower"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # STUN/TURN 服务器。用 host 网络模式：TURN 需要大量 UDP 端口，
+  # 桥接模式下逐个映射不现实。
+  #
+  # --use-auth-secret + --static-auth-secret 启用 TURN REST API 临时凭证机制，
+  # 密钥必须与 .env 的 TURN_SHARED_SECRET 一致。
+  #
+  # 注意：不要同时加 --lt-cred-mech —— 它与 --use-auth-secret 互斥，
+  # coturn 会告警且行为不确定（shared secret 会覆盖用户名密码认证）。
+  coturn:
+    image: coturn/coturn:latest
+    container_name: tower-coturn
+    network_mode: host
+    command: >
+      -n
+      --log-file=stdout
+      --realm=tower.local
+      --use-auth-secret
+      --static-auth-secret=dev-turn-shared-secret-change-me
+      --min-port=49152
+      --max-port=65535
+      --no-tls
+      --fingerprint
+    restart: unless-stopped
+
+  # Go 服务端。默认不随 `up` 启动（profile: full），
+  # 避免日常开发时它抢占 8080 端口、挡住宿主机的 `go run`。
+  # 需要验证镜像时用：docker compose --profile full up -d --build
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tower-api
+    profiles: ["full"]
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      HTTP_ADDR: ":8080"
+      # 容器内用服务名 postgres 而非 localhost。
+      DATABASE_URL: postgres://tower:devpassword@postgres:5432/tower?sslmode=disable
+      JWT_SECRET: dev-jwt-secret-change-me-at-least-32-bytes
+      ACCESS_TOKEN_TTL: 1h
+      REFRESH_TOKEN_TTL: 720h
+      BCRYPT_COST: "12"
+      TURN_SHARED_SECRET: dev-turn-shared-secret-change-me
+      TURN_REALM: tower.local
+      # coturn 用 host 网络，从容器内访问宿主机需走 host.docker.internal。
+      TURN_HOST: host.docker.internal
+      TURN_PORT: "3478"
+      TURN_TTL: 24h
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
