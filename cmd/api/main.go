@@ -146,30 +146,34 @@ func newRouter(cfg config.Config, logger zerolog.Logger, pool *pgxpool.Pool, reg
 
 	account.NewHandler(accountService, issuer, logger).Register(api, loginLimit, registerLimit)
 
-	// 房间模块。认证中间件带昵称解析 —— 房间成员列表要展示昵称。
+	// 房间模块。认证中间件带资料解析 —— 房间成员列表要展示昵称与头像。
 	roomService := room.NewService(room.NewRepository(pool), registry, logger)
-	roomAuth := middleware.RequireAuth(issuer, func(ctx context.Context, accountID int64) (string, error) {
+	roomAuth := middleware.RequireAuthWithProfile(issuer, func(ctx context.Context, accountID int64) (middleware.Profile, error) {
 		acc, err := accountService.Profile(ctx, accountID)
 		if err != nil {
-			return "", err
+			return middleware.Profile{}, err
 		}
 
-		return acc.DisplayName, nil
+		accountService.Decorate(acc)
+
+		return middleware.Profile{DisplayName: acc.DisplayName, AvatarURL: acc.AvatarURL}, nil
 	})
 
 	// 创建房间限流：同账号 5 次/分钟。
 	room.NewHandler(roomService, logger).Register(api, roomAuth, middleware.RateLimit(5, time.Minute))
 
 	// 信令模块：WebSocket 连接管理 + 消息转发。
-	// 昵称在连接建立时解析一次并缓存 —— 信令消息频率高，不能每条都查库。
+	// 昵称与头像在连接建立时解析一次并缓存 —— 信令消息频率高，不能每条都查库。
 	hub := signalpkg.NewHub(logger)
-	signalpkg.NewHandler(hub, issuer, roomService, func(accountID int64) string {
+	signalpkg.NewHandler(hub, issuer, roomService, func(accountID int64) signalpkg.Profile {
 		acc, err := accountService.Profile(context.Background(), accountID)
 		if err != nil {
-			return ""
+			return signalpkg.Profile{}
 		}
 
-		return acc.DisplayName
+		accountService.Decorate(acc)
+
+		return signalpkg.Profile{DisplayName: acc.DisplayName, AvatarURL: acc.AvatarURL}
 	}, logger).Register(api)
 
 	// 中继模块：下发 STUN/TURN 地址与临时凭证。

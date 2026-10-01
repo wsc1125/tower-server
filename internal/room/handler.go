@@ -69,8 +69,9 @@ func (h *Handler) create(c *gin.Context) {
 	}
 
 	displayName := middleware.DisplayNameFrom(c)
+	avatarURL := middleware.AvatarURLFrom(c)
 
-	snapshot, err := h.service.Create(c.Request.Context(), accountID, displayName, req.Name, maxPlayers, isPublic)
+	snapshot, err := h.service.Create(c.Request.Context(), accountID, displayName, avatarURL, req.Name, maxPlayers, isPublic)
 	if err != nil {
 		h.writeError(c, err, "创建房间失败")
 		return
@@ -109,7 +110,8 @@ func (h *Handler) join(c *gin.Context) {
 		return
 	}
 
-	snapshot, err := h.service.Join(c.Request.Context(), c.Param("code"), accountID, middleware.DisplayNameFrom(c))
+	snapshot, err := h.service.Join(c.Request.Context(), c.Param("code"), accountID,
+		middleware.DisplayNameFrom(c), middleware.AvatarURLFrom(c))
 	if err != nil {
 		h.writeError(c, err, "加入房间失败")
 		return

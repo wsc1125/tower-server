@@ -59,17 +59,23 @@ type DisconnectResult struct {
 
 // Handler 信令 WebSocket 接口。
 type Handler struct {
-	hub          *Hub
-	issuer       *auth.TokenIssuer
-	rooms        RoomLookup
-	nameResolver func(accountID int64) string
-	logger       zerolog.Logger
+	hub            *Hub
+	issuer         *auth.TokenIssuer
+	rooms          RoomLookup
+	profileResolver func(accountID int64) Profile
+	logger         zerolog.Logger
+}
+
+// Profile 账号展示信息（昵称 + 头像 URL）。
+type Profile struct {
+	DisplayName string
+	AvatarURL   string
 }
 
 // NewHandler 创建信令接口处理器。
 //
-// nameResolver 用于在连接建立时解析昵称（信令消息频率高，不能每条都查库）。
-func NewHandler(hub *Hub, issuer *auth.TokenIssuer, rooms RoomLookup, nameResolver func(accountID int64) string, logger zerolog.Logger) *Handler {
+// profileResolver 用于在连接建立时解析昵称与头像（信令消息频率高，不能每条都查库）。
+func NewHandler(hub *Hub, issuer *auth.TokenIssuer, rooms RoomLookup, profileResolver func(accountID int64) Profile, logger zerolog.Logger) *Handler {
 	hub.SetHostResolver(rooms.HostAccountID)
 	hub.SetDisconnectHandler(func(_ context.Context, roomCode string, accountID int64) {
 		result := rooms.OnDisconnect(roomCode, accountID)
@@ -99,11 +105,11 @@ func NewHandler(hub *Hub, issuer *auth.TokenIssuer, rooms RoomLookup, nameResolv
 	})
 
 	return &Handler{
-		hub:          hub,
-		issuer:       issuer,
-		rooms:        rooms,
-		nameResolver: nameResolver,
-		logger:       logger,
+		hub:             hub,
+		issuer:          issuer,
+		rooms:           rooms,
+		profileResolver: profileResolver,
+		logger:          logger,
 	}
 }
 
@@ -157,7 +163,8 @@ func (h *Handler) serve(c *gin.Context) {
 		return
 	}
 
-	client := newClient(conn, h.hub, claims.AccountID, h.displayName(claims.AccountID), roomCode, h.logger)
+	profile := h.profile(claims.AccountID)
+	client := newClient(conn, h.hub, claims.AccountID, profile.DisplayName, profile.AvatarURL, roomCode, h.logger)
 
 	h.hub.register(client)
 
@@ -175,6 +182,7 @@ func (h *Handler) serve(c *gin.Context) {
 	joined, err := newEnvelope(TypeMemberJoined, MemberJoinedPayload{
 		AccountID:   claims.AccountID,
 		DisplayName: client.displayName,
+		AvatarURL:   client.avatarURL,
 	})
 	if err == nil {
 		h.hub.Broadcast(roomCode, joined, claims.AccountID)
@@ -184,14 +192,14 @@ func (h *Handler) serve(c *gin.Context) {
 	client.readPump()
 }
 
-// displayName 查询账号昵称。
+// profile 查询账号展示信息（昵称 + 头像 URL）。
 //
-// 昵称在连接建立时查一次并缓存到 Client 上：
+// 在连接建立时查一次并缓存到 Client 上：
 // 信令消息频率高，每条都查库不可接受。
-func (h *Handler) displayName(accountID int64) string {
-	if h.nameResolver == nil {
-		return ""
+func (h *Handler) profile(accountID int64) Profile {
+	if h.profileResolver == nil {
+		return Profile{}
 	}
 
-	return h.nameResolver(accountID)
+	return h.profileResolver(accountID)
 }

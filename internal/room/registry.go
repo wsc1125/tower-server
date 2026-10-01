@@ -27,6 +27,7 @@ const (
 type Member struct {
 	AccountID   int64
 	DisplayName string
+	AvatarURL   string
 	JoinedAt    time.Time
 }
 
@@ -197,6 +198,7 @@ type Snapshot struct {
 type MemberBrief struct {
 	AccountID   int64     `json:"account_id"`
 	DisplayName string    `json:"display_name"`
+	AvatarURL   string    `json:"avatar_url"`
 	IsHost      bool      `json:"is_host"`
 	JoinedAt    time.Time `json:"joined_at"`
 }
@@ -214,6 +216,7 @@ func (r *Room) Snapshot() Snapshot {
 		briefs = append(briefs, MemberBrief{
 			AccountID:   m.AccountID,
 			DisplayName: m.DisplayName,
+			AvatarURL:   m.AvatarURL,
 			IsHost:      m.AccountID == hostID,
 			JoinedAt:    m.JoinedAt,
 		})

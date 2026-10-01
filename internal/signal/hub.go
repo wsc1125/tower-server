@@ -40,6 +40,7 @@ const (
 type Client struct {
 	accountID   int64
 	displayName string
+	avatarURL   string
 	roomCode    string
 
 	conn *websocket.Conn
@@ -63,6 +64,9 @@ func (c *Client) AccountID() int64 { return c.accountID }
 
 // DisplayName 昵称。
 func (c *Client) DisplayName() string { return c.displayName }
+
+// AvatarURL 头像 URL。未设置头像时为空串。
+func (c *Client) AvatarURL() string { return c.avatarURL }
 
 // RoomCode 所在房间码。
 func (c *Client) RoomCode() string { return c.roomCode }

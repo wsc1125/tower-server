@@ -63,7 +63,7 @@ func NewService(repo *Repository, registry *Registry, logger zerolog.Logger) *Se
 }
 
 // Create 创建房间：落库 + 内存建 Room + 房主加入。
-func (s *Service) Create(ctx context.Context, hostAccount int64, displayName, name string, maxPlayers int, isPublic bool) (Snapshot, error) {
+func (s *Service) Create(ctx context.Context, hostAccount int64, displayName, avatarURL, name string, maxPlayers int, isPublic bool) (Snapshot, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > 64 {
 		return Snapshot{}, ErrInvalidName
@@ -86,6 +86,7 @@ func (s *Service) Create(ctx context.Context, hostAccount int64, displayName, na
 	host := &Member{
 		AccountID:   hostAccount,
 		DisplayName: displayName,
+		AvatarURL:   avatarURL,
 		JoinedAt:    time.Now(),
 	}
 
@@ -106,7 +107,7 @@ func (s *Service) Create(ctx context.Context, hostAccount int64, displayName, na
 }
 
 // Join 加入房间。
-func (s *Service) Join(ctx context.Context, code string, accountID int64, displayName string) (Snapshot, error) {
+func (s *Service) Join(ctx context.Context, code string, accountID int64, displayName, avatarURL string) (Snapshot, error) {
 	room, err := s.mustGetRoom(ctx, code)
 	if err != nil {
 		return Snapshot{}, err
@@ -128,6 +129,7 @@ func (s *Service) Join(ctx context.Context, code string, accountID int64, displa
 	member := &Member{
 		AccountID:   accountID,
 		DisplayName: displayName,
+		AvatarURL:   avatarURL,
 		JoinedAt:    time.Now(),
 	}
 

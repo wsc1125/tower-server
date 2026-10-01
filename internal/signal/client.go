@@ -116,6 +116,7 @@ func (c *Client) roomStatePayload() RoomStatePayload {
 		members = append(members, MemberInfo{
 			AccountID:   other.accountID,
 			DisplayName: other.displayName,
+			AvatarURL:   other.avatarURL,
 			IsHost:      other.isHost(),
 			Ready:       other.IsReady(),
 		})
@@ -167,10 +168,11 @@ func (c *Client) mustEnvelope(msgType MessageType, payload any) Envelope {
 }
 
 // newClient 创建连接对象。
-func newClient(conn *websocket.Conn, hub *Hub, accountID int64, displayName, roomCode string, logger zerolog.Logger) *Client {
+func newClient(conn *websocket.Conn, hub *Hub, accountID int64, displayName, avatarURL, roomCode string, logger zerolog.Logger) *Client {
 	return &Client{
 		accountID:   accountID,
 		displayName: displayName,
+		avatarURL:   avatarURL,
 		roomCode:    roomCode,
 		conn:        conn,
 		hub:         hub,

@@ -92,6 +92,7 @@ type ReadyPayload struct {
 type MemberInfo struct {
 	AccountID   int64  `json:"account_id"`
 	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url"`
 	IsHost      bool   `json:"is_host"`
 	Ready       bool   `json:"ready"`
 }
@@ -107,6 +108,7 @@ type RoomStatePayload struct {
 type MemberJoinedPayload struct {
 	AccountID   int64  `json:"account_id"`
 	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url"`
 }
 
 // MemberLeftPayload 有玩家离开。
