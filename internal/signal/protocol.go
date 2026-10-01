@@ -43,6 +43,9 @@ const (
 	// TypeGameStarting 开始游戏，附带主机地址。
 	TypeGameStarting MessageType = "game_starting"
 
+	// TypeGameSession 本局游戏会话的连接信息。
+	TypeGameSession MessageType = "game_session"
+
 	// TypeHostChanged 房主迁移，客户端据此执行权威接管。
 	TypeHostChanged MessageType = "host_changed"
 
@@ -124,7 +127,22 @@ type SignalForwardPayload struct {
 
 // GameStartingPayload 开始游戏。
 type GameStartingPayload struct {
-	HostAccountID int64 `json:"host_account_id"`
+	HostAccountID int64  `json:"host_account_id"`
+	SessionID     string `json:"session_id"`
+}
+
+// GameSessionPayload 本局游戏会话信息。
+//
+// 成员据此连接房主。做成可查询状态而非一次性事件：
+// 成员可能错过推送，需要能主动补齐。
+type GameSessionPayload struct {
+	SessionID     string `json:"session_id"`
+	RoomCode      string `json:"room_code"`
+	TransportMode string `json:"transport_mode"`
+	HostAccountID int64  `json:"host_account_id"`
+	HostAddress   string `json:"host_address"`
+	HostPort      int    `json:"host_port"`
+	Status        string `json:"status"`
 }
 
 // HostChangedPayload 房主迁移。

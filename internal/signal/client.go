@@ -87,13 +87,34 @@ func (c *Client) handleStartGame(env Envelope) {
 		return
 	}
 
-	payload := GameStartingPayload{HostAccountID: c.accountID}
+	// 会话必须已就绪（房主已写入监听地址）才能开始：
+	// 否则成员收到 game_starting 却拿不到可连接的地址，只能干等超时。
+	info, ok := c.sessionInfo()
+	if !ok || info.HostAddress == "" {
+		c.sendError(ErrCodeNotHost, "房主尚未就绪，请先创建游戏会话并写入监听地址")
+		return
+	}
+
+	payload := GameStartingPayload{HostAccountID: c.accountID, SessionID: info.ID}
 	c.hub.Broadcast(c.roomCode, c.mustEnvelope(TypeGameStarting, payload), 0)
+
+	// 会话信息单独广播：成员据此连接房主，不必再靠一次性信令交换。
+	c.hub.BroadcastSession(c.roomCode)
 
 	c.log.Info().
 		Str("room_code", c.roomCode).
+		Str("session_id", info.ID).
 		Int64("host_account", c.accountID).
 		Msg("房主发起开始游戏")
+}
+
+// sessionInfo 查询本房间当前游戏会话。
+func (c *Client) sessionInfo() (SessionInfo, bool) {
+	if c.hub.sessionResolver == nil {
+		return SessionInfo{}, false
+	}
+
+	return c.hub.sessionResolver(c.roomCode)
 }
 
 // sendRoomState 向本连接下发完整房间状态。

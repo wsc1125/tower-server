@@ -288,6 +288,23 @@ func (s *Service) IsMember(code string, accountID int64) bool {
 	return room.HasMember(accountID)
 }
 
+// SessionInfo 返回房间当前游戏会话的连接信息，供信令模块广播。
+func (s *Service) SessionInfo(code string) (signal.SessionInfo, bool) {
+	session, ok := s.sessions.Get(code)
+	if !ok {
+		return signal.SessionInfo{}, false
+	}
+
+	return signal.SessionInfo{
+		ID:            session.ID,
+		TransportMode: session.TransportMode,
+		HostAccountID: session.HostAccountID,
+		HostAddress:   session.HostAddress,
+		HostPort:      session.HostPort,
+		Status:        session.Status,
+	}, true
+}
+
 // OnDisconnect 处理信令连接断开，返回新房主信息供信令模块广播。
 //
 // 与 Leave 的区别：Leave 是玩家主动退出（HTTP 调用），

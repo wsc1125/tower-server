@@ -90,12 +90,31 @@ func main() {
 	notHost := readUntil(wsB, "error", 3*time.Second)
 	check("非房主 start_game 被拒", notHost != nil, "")
 
+	// 房主先创建本局会话并写入监听地址，再发起开始游戏。
+	// 顺序不能反：start_game 会广播会话信息，此时会话必须已就绪，
+	// 否则成员收到的是空地址，无法连接。
+	post(a, "/rooms/"+code+"/session", nil)
+	post(a, "/rooms/"+code+"/session/ready", map[string]any{
+		"host_address": "10.6.136.22",
+		"host_port":    7777,
+	})
+
 	// A（房主）start_game → 双方都收到 game_starting。
 	send(wsA, "start_game", map[string]any{})
 	gsA := readUntil(wsA, "game_starting", 3*time.Second)
 	gsB := readUntil(wsB, "game_starting", 3*time.Second)
 	check("A 收到 game_starting", gsA != nil, "")
 	check("B 收到 game_starting", gsB != nil, "")
+
+	// 成员应能收到 game_session（含连接地址）。
+	gs := readUntil(wsB, "game_session", 3*time.Second)
+	check("B 收到 game_session", gs != nil, "")
+	if gs != nil {
+		p := gs["payload"].(map[string]any)
+		check("game_session 带 session_id", p["session_id"] != nil && p["session_id"] != "", "")
+		check("game_session 带 host_address", p["host_address"] == "10.6.136.22",
+			fmt.Sprintf("host_address=%v", p["host_address"]))
+	}
 
 	// 关键：A 断开 → B 应收到 host_changed。
 	wsA.Close()
