@@ -35,11 +35,6 @@ func (h *Handler) Register(r gin.IRouter, auth gin.HandlerFunc, createLimit gin.
 	group.POST("/:code/join", h.join)
 	group.POST("/:code/leave", h.leave)
 	group.DELETE("/:code", h.close)
-
-	group.POST("/:code/session", h.createSession)
-	group.GET("/:code/session", h.getSession)
-	group.POST("/:code/session/ready", h.markSessionReady)
-	group.DELETE("/:code/session", h.closeSession)
 }
 
 type createRequest struct {
@@ -163,79 +158,6 @@ func (h *Handler) close(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// sessionReadyRequest 房主上报的监听地址。
-type sessionReadyRequest struct {
-	HostAddress string `json:"host_address" binding:"required"`
-	HostPort    int    `json:"host_port" binding:"required"`
-}
-
-// createSession 房主创建本局游戏会话。
-func (h *Handler) createSession(c *gin.Context) {
-	accountID, ok := middleware.AccountIDFrom(c)
-	if !ok {
-		httpx.Unauthorized(c, httpx.CodeTokenInvalid, "未认证")
-		return
-	}
-
-	session, err := h.service.CreateSession(c.Request.Context(), c.Param("code"), accountID)
-	if err != nil {
-		h.writeError(c, err, "创建游戏会话失败")
-		return
-	}
-
-	c.JSON(http.StatusCreated, session)
-}
-
-// getSession 查询本局会话。
-func (h *Handler) getSession(c *gin.Context) {
-	session, ok := h.service.GetSession(c.Param("code"))
-	if !ok {
-		httpx.Fail(c, http.StatusNotFound, httpx.CodeRoomNotFound, "本局会话不存在")
-		return
-	}
-
-	c.JSON(http.StatusOK, session)
-}
-
-// markSessionReady 房主上报监听地址，会话转为 ready。
-func (h *Handler) markSessionReady(c *gin.Context) {
-	accountID, ok := middleware.AccountIDFrom(c)
-	if !ok {
-		httpx.Unauthorized(c, httpx.CodeTokenInvalid, "未认证")
-		return
-	}
-
-	var req sessionReadyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.BadRequest(c, "请求体格式错误：host_address 与 host_port 为必填")
-		return
-	}
-
-	session, err := h.service.MarkSessionReady(c.Param("code"), accountID, req.HostAddress, req.HostPort)
-	if err != nil {
-		h.writeError(c, err, "标记游戏会话就绪失败")
-		return
-	}
-
-	c.JSON(http.StatusOK, session)
-}
-
-// closeSession 房主结束本局会话。
-func (h *Handler) closeSession(c *gin.Context) {
-	accountID, ok := middleware.AccountIDFrom(c)
-	if !ok {
-		httpx.Unauthorized(c, httpx.CodeTokenInvalid, "未认证")
-		return
-	}
-
-	if err := h.service.CloseSession(c.Param("code"), accountID); err != nil {
-		h.writeError(c, err, "关闭游戏会话失败")
-		return
-	}
-
-	c.Status(http.StatusNoContent)
-}
-
 // writeError 把业务错误映射为 HTTP 响应。
 func (h *Handler) writeError(c *gin.Context, err error, fallback string) {
 	switch {
@@ -245,9 +167,6 @@ func (h *Handler) writeError(c *gin.Context, err error, fallback string) {
 		httpx.BadRequest(c, err.Error())
 
 	case errors.Is(err, ErrRoomNotFound):
-		httpx.Fail(c, http.StatusNotFound, httpx.CodeRoomNotFound, err.Error())
-
-	case errors.Is(err, ErrSessionNotFound):
 		httpx.Fail(c, http.StatusNotFound, httpx.CodeRoomNotFound, err.Error())
 
 	case errors.Is(err, ErrAlreadyInRoom),

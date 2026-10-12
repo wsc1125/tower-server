@@ -128,15 +128,6 @@ type Hub struct {
 	// 用注入而非直接依赖 room 包：Hub 只关心连接，
 	// 「谁是房主」是 room 模块的职责。
 	hostResolver func(roomCode string) int64
-
-	// sessionBroadcaster 广播本局会话信息，由 room 模块注入。
-	sessionBroadcaster func(roomCode string)
-
-	// sessionResolver 查询本局会话信息，由 room 模块注入。
-	//
-	// 与 sessionBroadcaster 分开：广播是「推送」，查询是「读取」，
-	// 房主发起开始游戏前需要先读一次确认会话已就绪。
-	sessionResolver func(roomCode string) (SessionInfo, bool)
 }
 
 // NewHub 创建连接管理中心。
@@ -158,23 +149,6 @@ func (h *Hub) SetDisconnectHandler(fn func(ctx context.Context, roomCode string,
 // SetHostResolver 注入房主查询函数。
 func (h *Hub) SetHostResolver(fn func(roomCode string) int64) {
 	h.hostResolver = fn
-}
-
-// SetSessionBroadcaster 注入会话广播函数。
-func (h *Hub) SetSessionBroadcaster(fn func(roomCode string)) {
-	h.sessionBroadcaster = fn
-}
-
-// SetSessionResolver 注入会话查询函数。
-func (h *Hub) SetSessionResolver(fn func(roomCode string) (SessionInfo, bool)) {
-	h.sessionResolver = fn
-}
-
-// BroadcastSession 向房间广播当前会话信息。
-func (h *Hub) BroadcastSession(roomCode string) {
-	if h.sessionBroadcaster != nil {
-		h.sessionBroadcaster(roomCode)
-	}
 }
 
 // register 登记连接。同一账号重复连接时，旧连接被顶掉。

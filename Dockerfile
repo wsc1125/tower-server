@@ -44,6 +44,10 @@ WORKDIR /app
 
 COPY --from=builder /build/api /app/api
 
+# 头像目录默认落在工作目录下（AVATAR_DIR=data/avatars），
+# 需把 /app 属主交给 appuser，否则非 root 运行时会因无写权限启动失败。
+RUN mkdir -p /app/data/avatars && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8080

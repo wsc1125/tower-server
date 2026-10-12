@@ -39,19 +39,6 @@ type RoomLookup interface {
 	// 返回新房主信息而非让 signal 再查一次：房主迁移与断线处理是同一个原子操作，
 	// 分开查会读到中间状态。
 	OnDisconnect(roomCode string, accountID int64) DisconnectResult
-
-	// SessionInfo 返回房间当前游戏会话的连接信息。
-	SessionInfo(roomCode string) (SessionInfo, bool)
-}
-
-// SessionInfo 游戏会话的连接信息。
-type SessionInfo struct {
-	ID            string
-	TransportMode string
-	HostAccountID int64
-	HostAddress   string
-	HostPort      int
-	Status        string
 }
 
 // DisconnectResult 断线处理结果。
@@ -116,27 +103,6 @@ func NewHandler(hub *Hub, issuer *auth.TokenIssuer, rooms RoomLookup, profileRes
 			}
 		}
 	})
-	hub.SetSessionBroadcaster(func(roomCode string) {
-		info, ok := rooms.SessionInfo(roomCode)
-		if !ok {
-			return
-		}
-
-		payload := GameSessionPayload{
-			SessionID:     info.ID,
-			RoomCode:      roomCode,
-			TransportMode: info.TransportMode,
-			HostAccountID: info.HostAccountID,
-			HostAddress:   info.HostAddress,
-			HostPort:      info.HostPort,
-			Status:        info.Status,
-		}
-
-		if env, err := newEnvelope(TypeGameSession, payload); err == nil {
-			hub.Broadcast(roomCode, env, 0)
-		}
-	})
-	hub.SetSessionResolver(rooms.SessionInfo)
 
 	return &Handler{
 		hub:             hub,
