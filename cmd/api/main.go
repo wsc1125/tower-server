@@ -25,7 +25,9 @@ import (
 	"github.com/tower/server/internal/db"
 	"github.com/tower/server/internal/health"
 	"github.com/tower/server/internal/middleware"
+	"github.com/tower/server/internal/raid"
 	"github.com/tower/server/internal/relay"
+	"github.com/tower/server/internal/relayws"
 	"github.com/tower/server/internal/room"
 	signalpkg "github.com/tower/server/internal/signal"
 )
@@ -180,6 +182,15 @@ func newRouter(cfg config.Config, logger zerolog.Logger, pool *pgxpool.Pool, reg
 	// 凭证绑定账号，因此复用带认证的中间件（不需要昵称，传 nil）。
 	relayIssuer := relay.NewIssuer(cfg.TURNSharedSecret, cfg.TURNRealm, cfg.TURNHost, cfg.TURNPort, cfg.TURNTTL)
 	relay.NewHandler(relayIssuer, logger).Register(api, middleware.RequireAuth(issuer, nil))
+
+	// 战斗流量中继：NGO 的 WebSocket 中继传输经此交换战斗数据。
+	// 房主是 NGO 会话中心且通常在 NAT 后 —— 直连不可达时全员经此转发。
+	relayws.NewHandler(relayws.NewHub(logger), issuer, roomService, logger).Register(api)
+
+	// 撤离结算模块：客户端上报本局战利品清单，直接落库（本期不做校验）。
+	// 记录归属账号，复用带认证的中间件；上报是写库操作，限流防刷。
+	extractLimit := middleware.RateLimit(10, time.Minute)
+	raid.NewHandler(raid.NewRepository(pool), logger).Register(api, middleware.RequireAuth(issuer, nil), extractLimit)
 
 	return router
 }

@@ -2,6 +2,7 @@ package signal
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strings"
 
@@ -59,11 +60,11 @@ type DisconnectResult struct {
 
 // Handler 信令 WebSocket 接口。
 type Handler struct {
-	hub            *Hub
-	issuer         *auth.TokenIssuer
-	rooms          RoomLookup
+	hub             *Hub
+	issuer          *auth.TokenIssuer
+	rooms           RoomLookup
 	profileResolver func(accountID int64) Profile
-	logger         zerolog.Logger
+	logger          zerolog.Logger
 }
 
 // Profile 账号展示信息（昵称 + 头像 URL）。
@@ -164,7 +165,7 @@ func (h *Handler) serve(c *gin.Context) {
 	}
 
 	profile := h.profile(claims.AccountID)
-	client := newClient(conn, h.hub, claims.AccountID, profile.DisplayName, profile.AvatarURL, roomCode, h.logger)
+	client := newClient(conn, h.hub, claims.AccountID, profile.DisplayName, profile.AvatarURL, roomCode, normalizeRemoteIP(conn.RemoteAddr()), h.logger)
 
 	h.hub.register(client)
 
@@ -202,4 +203,19 @@ func (h *Handler) profile(accountID int64) Profile {
 	}
 
 	return h.profileResolver(accountID)
+}
+
+// normalizeRemoteIP 提取连接来源 IP 并归一化。
+// 回环地址统一为 "loopback"；来源 IP 不用于推断客户端之间的局域网可达性。
+func normalizeRemoteIP(addr net.Addr) string {
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		host = addr.String()
+	}
+
+	if host == "::1" || host == "127.0.0.1" {
+		return "loopback"
+	}
+
+	return host
 }

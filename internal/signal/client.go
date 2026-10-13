@@ -87,13 +87,23 @@ func (c *Client) handleStartGame(env Envelope) {
 		return
 	}
 
-	payload := GameStartingPayload{HostAccountID: c.accountID}
+	payload := GameStartingPayload{
+		HostAccountID: c.accountID,
+		TransportMode: c.resolveTransportMode(),
+	}
 	c.hub.Broadcast(c.roomCode, c.mustEnvelope(TypeGameStarting, payload), 0)
 
 	c.log.Info().
 		Str("room_code", c.roomCode).
 		Int64("host_account", c.accountID).
+		Str("transport_mode", payload.TransportMode).
 		Msg("房主发起开始游戏")
+}
+
+// resolveTransportMode 公网房间默认走中继；来源 IP 相同不能证明局域网可达。
+// LAN 直连留待显式模式入口选择。
+func (c *Client) resolveTransportMode() string {
+	return "relay"
 }
 
 // sendRoomState 向本连接下发完整房间状态。
@@ -168,12 +178,13 @@ func (c *Client) mustEnvelope(msgType MessageType, payload any) Envelope {
 }
 
 // newClient 创建连接对象。
-func newClient(conn *websocket.Conn, hub *Hub, accountID int64, displayName, avatarURL, roomCode string, logger zerolog.Logger) *Client {
+func newClient(conn *websocket.Conn, hub *Hub, accountID int64, displayName, avatarURL, roomCode, remoteIP string, logger zerolog.Logger) *Client {
 	return &Client{
 		accountID:   accountID,
 		displayName: displayName,
 		avatarURL:   avatarURL,
 		roomCode:    roomCode,
+		remoteIP:    remoteIP,
 		conn:        conn,
 		hub:         hub,
 		log:         logger,

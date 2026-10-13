@@ -43,6 +43,9 @@ type Client struct {
 	avatarURL   string
 	roomCode    string
 
+	// remoteIP 归一化的连接来源 IP（回环统一为 "loopback"），不用于推断 LAN 可达性。
+	remoteIP string
+
 	conn *websocket.Conn
 	hub  *Hub
 	log  zerolog.Logger
@@ -179,21 +182,21 @@ func (h *Hub) register(c *Client) {
 	}
 }
 
-// unregister 注销连接。仅当当前登记的连接就是 c 时才移除 ——
-// 避免「被顶掉的旧连接」在退出时误删新连接。
-func (h *Hub) unregister(c *Client) {
+// unregister 注销连接，返回是否移除了当前登记的连接。
+// 被顶掉的旧连接不移除新连接，也不触发成员断线回调。
+func (h *Hub) unregister(c *Client) bool {
 	h.mu.Lock()
 
 	room, exists := h.rooms[c.roomCode]
 	if !exists {
 		h.mu.Unlock()
-		return
+		return false
 	}
 
 	current, ok := room[c.accountID]
 	if !ok || current != c {
 		h.mu.Unlock()
-		return
+		return false
 	}
 
 	delete(room, c.accountID)
@@ -202,6 +205,7 @@ func (h *Hub) unregister(c *Client) {
 	}
 
 	h.mu.Unlock()
+	return true
 }
 
 // Broadcast 向房间内所有连接推送消息，可排除某个账号。
@@ -294,10 +298,10 @@ func (h *Hub) CloseRoom(roomCode, reason string) {
 // 每个连接一个 goroutine。退出时负责注销连接并触发断线回调。
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister(c)
+		removed := c.hub.unregister(c)
 		c.close()
 
-		if c.hub.onDisconnect != nil {
+		if removed && c.hub.onDisconnect != nil {
 			// 用独立 context：请求 context 在连接关闭时已取消，
 			// 而房主迁移需要继续访问数据库。
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

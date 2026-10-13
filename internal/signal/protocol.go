@@ -125,12 +125,16 @@ type SignalForwardPayload struct {
 // GameStartingPayload 开始游戏。
 type GameStartingPayload struct {
 	HostAccountID int64 `json:"host_account_id"`
+
+	// TransportMode 传输模式：公网房间默认下发 "relay"。
+	// "lan" 留待显式模式入口选择。旧客户端忽略此字段时按 lan 处理。
+	TransportMode string `json:"transport_mode,omitempty"`
 }
 
 // HostChangedPayload 房主迁移。
 type HostChangedPayload struct {
-	NewHostAccountID     int64  `json:"new_host_account_id"`
-	NewHostDisplayName   string `json:"new_host_display_name"`
+	NewHostAccountID   int64  `json:"new_host_account_id"`
+	NewHostDisplayName string `json:"new_host_display_name"`
 }
 
 // RoomClosedPayload 房间关闭。
