@@ -24,6 +24,9 @@ const (
 	CodeRoomNotFound = "ROOM_NOT_FOUND"
 	CodeRoomConflict = "ROOM_CONFLICT"
 	CodeForbidden    = "FORBIDDEN"
+
+	// 资产快照模块。
+	CodeSchemaVersionUnsupported = "SCHEMA_VERSION_UNSUPPORTED"
 )
 
 // ErrorBody 错误响应体。

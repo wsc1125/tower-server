@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/tower/server/internal/account"
+	"github.com/tower/server/internal/assets"
 	"github.com/tower/server/internal/auth"
 	"github.com/tower/server/internal/avatar"
 	"github.com/tower/server/internal/config"
@@ -191,6 +192,11 @@ func newRouter(cfg config.Config, logger zerolog.Logger, pool *pgxpool.Pool, reg
 	// 记录归属账号，复用带认证的中间件；上报是写库操作，限流防刷。
 	extractLimit := middleware.RateLimit(10, time.Minute)
 	raid.NewHandler(raid.NewRepository(pool), logger).Register(api, middleware.RequireAuth(issuer, nil), extractLimit)
+
+	// 资产云存档模块：整包快照的上下传（第一期客户端权威，服务端只透传）。
+	// 上传是写库操作，限流防刷；读取不写库，不限流。
+	assets.NewHandler(assets.NewRepository(pool), logger).
+		Register(api, middleware.RequireAuth(issuer, nil), middleware.RateLimit(30, time.Minute))
 
 	return router
 }
