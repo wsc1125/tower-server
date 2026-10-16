@@ -27,6 +27,7 @@ const (
 
 	// 资产快照模块。
 	CodeSchemaVersionUnsupported = "SCHEMA_VERSION_UNSUPPORTED"
+	CodePayloadTooLarge          = "PAYLOAD_TOO_LARGE"
 )
 
 // ErrorBody 错误响应体。

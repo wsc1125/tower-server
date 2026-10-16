@@ -2,6 +2,7 @@ package assets
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -108,8 +109,15 @@ func (h *Handler) put(c *gin.Context) {
 
 	var req putRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// MaxBytesReader 超限时返回的错误也走这里，统一提示。
-		httpx.BadRequest(c, "请求体格式错误或超过大小上限")
+		// MaxBytesReader 超限时返回 *http.MaxBytesError，单独映射为 413，
+		// 便于客户端区分「格式错误」与「体积超限」。
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			httpx.Fail(c, http.StatusRequestEntityTooLarge, httpx.CodePayloadTooLarge,
+				"快照体积超过上限")
+			return
+		}
+		httpx.BadRequest(c, "请求体格式错误")
 		return
 	}
 
