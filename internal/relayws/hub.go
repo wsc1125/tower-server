@@ -10,8 +10,11 @@
 //     帧头在整条链路上始终保留（客户端 HandleData 依赖它解析发送者）：
 //     成员 → 房主：成员发的 ID 恒为 0（服务端 ID），服务端改写为发送者账号 ID 后转给房主；
 //     房主 → 成员：ID 为目标账号 ID，服务端据此路由，帧头原样转发。
-//   - 文本帧 = 控制消息：welcome（分配 ID）/ peer_joined（成员加入）/ peer_left（成员断线）/ kick（房主踢人）。
+//   - 文本帧 = 控制消息：welcome（分配 ID）/ peer_joined（成员加入）/ peer_left（成员断线）/ kick（房主踢人）/ resume（成员传输层重连）。
 //     每个房主连接先收到成员的 peer_joined，再收到该成员的任何 Data；同账号替换不重复通知当前房主。
+//     resume 由重连的成员在 socket 恢复后立即发出：房主侧据此撤销 peer_left 宽限而不向 NGO
+//     投递任何事件（NGO 无感知）。全新连接（协调层重新 StartClient）不发 resume，
+//     服务端照常发 peer_joined —— 房主 NGO 走全新握手。
 //
 // NGO 侧的传输实现见客户端 WebSocketRelayTransport。
 package relayws
@@ -55,6 +58,7 @@ const (
 	controlPeerJoined = "peer_joined"
 	controlPeerLeft   = "peer_left"
 	controlKick       = "kick"
+	controlResume     = "resume"
 )
 
 // ControlMessage 控制帧。
@@ -259,6 +263,28 @@ func (h *Hub) Leave(c *Conn) {
 	h.mu.Unlock()
 }
 
+// Resume 成员传输层重连成功：把 resume 转发给房主。
+//
+// 房主客户端收到后会撤销 peer_left 宽限并恢复该成员的收发门卫，全程不向 NGO
+// 投递任何事件 —— NGO 侧无感知（成员的 NGO 会话从未断开）。
+// 全新连接（成员端 NGO 重建会话）走 Join 的 peer_joined 路径，与 resume 无关。
+func (h *Hub) Resume(sender *Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	room := sender.room
+	if room == nil || h.rooms[room.code] != room || sender.isHost {
+		return
+	}
+
+	host := room.host
+	if host == nil {
+		return
+	}
+
+	host.enqueueControl(controlResume, sender.accountID)
+}
+
 // closeRoom 关闭房间内所有连接。
 func (h *Hub) closeRoom(roomCode, reason string) {
 	h.mu.Lock()
@@ -385,19 +411,26 @@ func (c *Conn) readPump() {
 				continue
 			}
 
-			if msg.Type == controlKick && c.isHost {
-				h := c.hub
-				h.mu.Lock()
-				var targetConn *Conn
-				if c.room != nil {
-					targetConn = c.room.clients[msg.ClientID]
-				}
-				h.mu.Unlock()
+			switch msg.Type {
+			case controlKick:
+				if c.isHost {
+					h := c.hub
+					h.mu.Lock()
+					var targetConn *Conn
+					if c.room != nil {
+						targetConn = c.room.clients[msg.ClientID]
+					}
+					h.mu.Unlock()
 
-				if targetConn != nil {
-					targetConn.markKicked()
-					targetConn.close()
+					if targetConn != nil {
+						targetConn.markKicked()
+						targetConn.close()
+					}
 				}
+
+			case controlResume:
+				// 成员传输层重连成功：告知房主撤销 peer_left 宽限（NGO 侧无感知）。
+				c.hub.Resume(c)
 			}
 		}
 	}

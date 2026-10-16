@@ -172,6 +172,28 @@ func TestReplacedHostLeaveKeepsNewHostAndMembers(t *testing.T) {
 	}
 }
 
+func TestResumeForwardedToHostOnly(t *testing.T) {
+	h := NewHub(zerolog.Nop())
+	host, member := testConn(t, h, 1), testConn(t, h, 42)
+	h.Join("ROOM", host, true)
+	h.Join("ROOM", member, false)
+	expectControl(t, host, "peer_joined", 42)
+
+	// 成员发 resume → 房主收到（带成员账号 ID）。
+	h.Resume(member)
+	expectControl(t, host, "resume", 42)
+
+	// 房主发 resume → 不转发（resume 只对成员有意义）。
+	h.Resume(host)
+	if len(host.send) != 0 {
+		t.Fatal("host resume must not be forwarded")
+	}
+
+	// resume 不影响数据转发。
+	h.Route(member, testFrame(0, 1))
+	expectData(t, host, 42, 1)
+}
+
 func TestMemberReplacementDeduplicatesEventsAndRejectsStaleData(t *testing.T) {
 	h := NewHub(zerolog.Nop())
 	host, oldMember, newMember := testConn(t, h, 1), testConn(t, h, 42), testConn(t, h, 42)
