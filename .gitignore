@@ -1,5 +1,5 @@
 # Go 编译产物
-/server/bin/
+/bin/
 *.exe
 *.exe~
 *.dll
@@ -15,10 +15,10 @@ coverage.html
 .env
 
 # 依赖缓存（go.sum 入库，vendor 不入库）
-/server/vendor/
+/vendor/
 
 # 用户上传的头像（运行时数据，不入库）
-/server/data/
+/data/
 
 # IDE
 .idea/
